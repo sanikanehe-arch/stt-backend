@@ -1,53 +1,50 @@
 const User = require("../models/userModel");
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
+// REGISTER
 const registerUser = async (req, res) => {
   try {
     const { name, email, password } = req.body;
 
-    // Check email format
-    const emailRegex =
-      /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!emailRegex.test(email)) {
       return res.status(400).json({
-        message: "Invalid email",
+        message: "Invalid email"
       });
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Check whether user already exists
     const existingUser = await User.findOne({ email });
 
     if (existingUser) {
       return res.status(400).json({
-        message: "Email is already registered",
+        message: "Email is already registered"
       });
     }
 
-    // Create user
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     const user = await User.create({
       name,
       email,
-      password: hashedPassword,
+      password: hashedPassword
     });
 
     res.status(201).json({
       message: "User registered successfully",
-      user,
+      user
     });
 
   } catch (error) {
     res.status(500).json({
-      message: error.message,
+      message: error.message
     });
   }
 };
 
-const jwt = require("jsonwebtoken");
 
+// LOGIN
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -56,18 +53,15 @@ const login = async (req, res) => {
 
     if (!user) {
       return res.status(404).json({
-        message: "User not found",
+        message: "User not found"
       });
     }
 
-    const isPasswordCorrect = await bcrypt.compare(
-      password,
-      user.password
-    );
+    const match = await bcrypt.compare(password, user.password);
 
-    if (!isPasswordCorrect) {
+    if (!match) {
       return res.status(401).json({
-        message: "Invalid password",
+        message: "Invalid password"
       });
     }
 
@@ -79,17 +73,141 @@ const login = async (req, res) => {
 
     res.status(200).json({
       message: "Login successful",
-      token,
+      token
     });
 
   } catch (error) {
     res.status(500).json({
-      message: error.message,
+      message: error.message
     });
   }
 };
 
+
+// GET USER
+const getUserDetails = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id).select("-password");
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found"
+      });
+    }
+
+    res.status(200).json({
+      user
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: error.message
+    });
+  }
+};
+
+
+// UPDATE USER
+const updateUserDetails = async (req, res) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      {
+        new: true,
+        runValidators: true
+      }
+    ).select("-password");
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found"
+      });
+    }
+
+    res.status(200).json({
+      message: "User updated",
+      user
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: error.message
+    });
+  }
+};
+
+
+// DELETE USER
+const deleteUser = async (req, res) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found"
+      });
+    }
+
+    res.status(200).json({
+      message: "User deleted"
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: error.message
+    });
+  }
+};
+
+
+// CHANGE PASSWORD
+const changePassword = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { oldPassword, newPassword } = req.body;
+
+    const user = await User.findById(id);
+
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found"
+      });
+    }
+
+    const match = await bcrypt.compare(
+      oldPassword,
+      user.password
+    );
+
+    if (!match) {
+      return res.status(401).json({
+        message: "Old password is incorrect"
+      });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
+
+    await user.save();
+
+    res.status(200).json({
+      message: "Password changed successfully"
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      message: error.message
+    });
+  }
+};
+
+
+// EXPORT ALL FUNCTIONS
 module.exports = {
   registerUser,
   login,
+  getUserDetails,
+  updateUserDetails,
+  deleteUser,
+  changePassword
 };
